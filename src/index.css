@@ -1,0 +1,231 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: 'Google Sans Flex';
+  src: url('/fonts/GoogleSansFlex-Variable.ttf') format('truetype-variations');
+  font-weight: 1 1000;
+  font-stretch: 25% 151%;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme {
+  /* Backgrounds / bulk surfaces */
+  --color-white: #ffffff;
+  --color-cream: #fffdd0;
+  --color-eggshell: #f0ead6;
+  --color-pearl: #f5f2e8;
+  --color-peach: #ffe5b4;
+
+  /* Card/sheet/input surfaces — a separate token from --color-white so Trip Mode
+     (see .trip-mode below) can flip these dark without touching --color-white,
+     which is also used as literal on-brand-color text (text-white on teal etc.). */
+  --color-surface: #ffffff;
+  --color-surface-tint: #e8e9eb;
+
+  /* Accent theme (blue, ships first) */
+  --color-baby-blue: #89cff0;
+  --color-cornflower: #6495ed;
+  --color-teal: #008080;
+
+  /* Income/expense coding (Movimientos list) */
+  --color-income: #9ecb91;
+  --color-expense: #ff746c;
+
+  /* Text */
+  --color-ink: #2b2a25;
+  --color-ink-soft: #7a7263;
+
+  --radius-app: 1.5rem;
+
+  /* Typography */
+  --font-display: 'Google Sans Flex', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: 'DM Sans', system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+
+:root {
+  color-scheme: light;
+  font-family: var(--font-sans);
+  font-optical-sizing: auto;
+}
+
+/* Trip Mode — applied to the app shell while a trip is active (see
+   src/context/TripMode.tsx). Swaps the neutral surface tokens for a dark set;
+   accent (teal), income/expense coding, and --color-white (on-brand-color text)
+   are left alone so buttons/badges still read correctly. */
+.trip-mode {
+  color-scheme: dark;
+  --color-cream: #1b2023;
+  --color-eggshell: #1f2528;
+  --color-pearl: #14181a;
+  --color-peach: #262c30;
+  --color-surface: #20272b;
+  --color-surface-tint: #2a3236;
+  --color-ink: #f2f0e6;
+  --color-ink-soft: #a6a99f;
+}
+
+.font-display {
+  font-optical-sizing: auto;
+  font-variation-settings:
+    'slnt' 0,
+    'wdth' 100,
+    'GRAD' 0,
+    'ROND' 0;
+}
+
+body {
+  margin: 0;
+  background: var(--color-pearl);
+  color: var(--color-ink);
+  min-height: 100svh;
+}
+
+#root {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+
+button,
+input,
+select {
+  font-family: inherit;
+}
+
+/* iOS Safari zooms the whole page in when focusing any text input under 16px —
+   and since this is an SPA (no reload on route change), that zoom persists across
+   tab switches, which reads as "the app got bigger" for no visible reason. Lives in
+   the "base" layer so an explicit Tailwind text-size utility (e.g. the big amount
+   input's text-3xl) still wins over this default. */
+@layer base {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* Entry Wheel: soft "pressable" 3D button feel — subtle, not skeuomorphic */
+.wheel-button {
+  border: none;
+  background-image: linear-gradient(160deg, rgb(255 255 255 / 0.22), rgb(0 0 0 / 0.06));
+  box-shadow:
+    0 10px 20px rgb(0 0 0 / 0.22),
+    0 2px 6px rgb(0 0 0 / 0.16),
+    inset 0 1px 1px rgb(255 255 255 / 0.35);
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.wheel-button:active {
+  transform: translateY(2px) scale(0.98);
+  box-shadow:
+    0 4px 8px rgb(0 0 0 / 0.18),
+    0 1px 2px rgb(0 0 0 / 0.14),
+    inset 0 1px 2px rgb(0 0 0 / 0.18);
+}
+
+@keyframes ring-pop {
+  0% {
+    scale: 0;
+    opacity: 0;
+  }
+  65% {
+    scale: 1.12;
+    opacity: 1;
+  }
+  100% {
+    scale: 1;
+    opacity: 1;
+  }
+}
+
+.animate-ring-pop {
+  animation: ring-pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes ring-exit {
+  0% {
+    scale: 1;
+    opacity: 1;
+  }
+  100% {
+    scale: 0.3;
+    opacity: 0;
+  }
+}
+
+.animate-ring-exit {
+  animation: ring-exit 360ms ease-in both;
+  pointer-events: none;
+}
+
+@keyframes ring-dissolve {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.animate-ring-dissolve {
+  animation: ring-dissolve 260ms ease-in both;
+  pointer-events: none;
+}
+
+@keyframes center-fade-in {
+  0% {
+    scale: 0.7;
+    opacity: 0;
+  }
+  100% {
+    scale: 1;
+    opacity: 1;
+  }
+}
+
+.animate-center-fade-in {
+  animation: center-fade-in 280ms ease-out 100ms both;
+}
+
+@keyframes center-fade-out {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.animate-center-fade-out {
+  animation: center-fade-out 180ms ease-in both;
+}
+
+@keyframes panel-fade-in {
+  0% {
+    scale: 0.92;
+    opacity: 0;
+  }
+  100% {
+    scale: 1;
+    opacity: 1;
+  }
+}
+
+.animate-panel-fade-in {
+  animation: panel-fade-in 320ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-ring-pop,
+  .animate-ring-exit,
+  .animate-ring-dissolve,
+  .animate-center-fade-in,
+  .animate-center-fade-out,
+  .animate-panel-fade-in {
+    animation: none;
+  }
+}
