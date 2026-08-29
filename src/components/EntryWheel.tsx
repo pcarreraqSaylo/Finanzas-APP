@@ -451,7 +451,7 @@ export function EntryWheel({
 
       {undoTx && (
         <div className="absolute bottom-2 left-1/2 -translate-x-1/2">
-          <button type="button" onClick={undo} className="rounded-app bg-ink px-4 py-2 text-sm text-pearl shadow">
+          <button type="button" onClick={undo} className="px-4 py-2 text-sm font-medium text-ink">
             Guardado
           </button>
         </div>
@@ -525,7 +525,7 @@ export function EntryWheel({
             type="button"
             onClick={save}
             disabled={!amount || Number(amount) <= 0}
-            className="self-center text-base font-medium text-ink disabled:opacity-40"
+            className="self-center rounded-app bg-teal px-4 py-3 text-lg font-medium text-white disabled:opacity-40"
           >
             Guardar
           </button>
