@@ -15,7 +15,7 @@ export default defineConfig({
         name: 'Finanzas',
         short_name: 'Finanzas',
         description: 'Log income and expenses in a few taps.',
-        theme_color: '#89CFF0',
+        theme_color: '#008080',
         background_color: '#FFFDD0',
         display: 'standalone',
         start_url: '/',

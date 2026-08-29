@@ -69,31 +69,31 @@ export function KpiStrip() {
       style={{ borderRadius: '0% 0% 55% 45% / 0% 0% 12% 9%' }}
     >
       <Link to="/analytics" className="flex flex-col items-center gap-0.5 text-center">
-        <span className="text-[10px] uppercase tracking-wide text-white/75">Balance este mes</span>
+        <span className="text-[11px] uppercase tracking-wide text-white/75">Balance este mes</span>
         <span className="font-display text-2xl font-semibold text-white">
           {formatMoney(totals?.balance ?? 0, currency)}
         </span>
-        <span className="text-[10px] text-white/75">
+        <span className="text-[11px] text-white/75">
           {formatMoney(avgDaily, currency)}/día · Día {dayOfMonth}/{daysInMonth} · {daysRemaining}{' '}
           {daysRemaining === 1 ? 'restante' : 'restantes'}
         </span>
       </Link>
 
-      <div className="flex items-center justify-between text-[10px] text-white/85">
+      <div className="flex items-center justify-between text-[11px] text-white/85">
         <span className="text-expense">↓ {formatMoney(totals?.expense ?? 0, currency)}</span>
         <span>{pctOfIncome === null ? '—' : `${pctOfIncome}% del ingreso`}</span>
       </div>
 
       <div className="mt-0.5 border-t border-white/20 pt-1">
-        <span className="text-[9px] font-medium uppercase tracking-wide text-white/75">Top 3 gastos del mes</span>
+        <span className="text-[10px] font-medium uppercase tracking-wide text-white/75">Top 3 gastos del mes</span>
         <div className="mt-1 flex items-start justify-around gap-1">
           {topExpenseCategories?.length ? (
             topExpenseCategories.map(({ category, amount, pct }) => (
               <div key={category?.id} className="flex w-[92px] flex-col items-center gap-0.5 text-center">
                 <CategoryBadge name={category?.name ?? '—'} size="xs" />
-                <span className="whitespace-normal text-[10px] leading-tight text-white">{category?.name}</span>
-                <span className="text-[10px] font-semibold text-white">{formatMoney(amount, currency)}</span>
-                <span className="text-[9px] text-white/75">{pct}%</span>
+                <span className="whitespace-normal text-[11px] leading-tight text-white">{category?.name}</span>
+                <span className="text-[11px] font-semibold text-white">{formatMoney(amount, currency)}</span>
+                <span className="text-[10px] text-white/75">{pct}%</span>
               </div>
             ))
           ) : (
