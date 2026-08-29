@@ -23,8 +23,8 @@ class FinanzasDB extends Dexie {
   constructor() {
     super('finanzas')
     this.version(1).stores({
-      categories: 'id, kind, sortOrder',
-      subcategories: 'id, categoryId, sortOrder',
+      categories: 'id, kind, sortOrder, name',
+      subcategories: 'id, categoryId, sortOrder, name',
       trips: 'id, startDate',
       whoOptions: 'id, sortOrder',
       recurringRules: 'id, categoryId, active',
