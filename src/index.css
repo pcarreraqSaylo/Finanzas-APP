@@ -91,6 +91,31 @@ button,
 input,
 select {
   font-family: inherit;
+  color: inherit;
+}
+
+/* Ring tracks around the Entry Wheel — visible teal-on-cream normally, but a
+   30%-opacity teal line nearly disappears against Trip Mode's near-black
+   background, so it switches to a light line there instead. */
+.wheel-ring-track {
+  border-color: rgb(0 128 128 / 0.3);
+}
+
+.trip-mode .wheel-ring-track {
+  border-color: rgb(255 255 255 / 0.35);
+}
+
+/* Form inputs (amount/date/note/name fields across the app) keep a white box with
+   dark text in Trip Mode instead of following the dark surface swap — <input>
+   elements don't inherit `color` from the page by default, so their text stayed
+   near-black even once their background went dark, making it unreadable. */
+.trip-mode input:not([type='checkbox']) {
+  background-color: #ffffff;
+  color: #2b2a25;
+}
+
+.trip-mode .amount-prefix {
+  color: #2b2a25;
 }
 
 /* iOS Safari zooms the whole page in when focusing any text input under 16px —

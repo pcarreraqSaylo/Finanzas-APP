@@ -227,7 +227,7 @@ export function IncomeButton() {
             )}
 
             <div className="relative">
-              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 font-display text-3xl font-semibold text-ink-soft">
+              <span className="amount-prefix pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 font-display text-3xl font-semibold text-ink-soft">
                 $
               </span>
               <input

@@ -20,7 +20,7 @@ export function CategoryBadge({
 
   return (
     <span
-      className="inline-flex shrink-0 items-center justify-center rounded-full bg-surface-tint ring-1 ring-teal/30"
+      className="inline-flex shrink-0 items-center justify-center rounded-full bg-white ring-1 ring-teal/30"
       style={{ width: dim, height: dim, padding: PAD_PX[size] }}
     >
       {slug ? (

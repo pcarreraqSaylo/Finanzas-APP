@@ -332,11 +332,11 @@ export function EntryWheel({
           }}
         >
           {/* Ring 1 track — always present, even at rest on the closed wheel. */}
-          <div className="pointer-events-none absolute rounded-full border-teal/30" style={ringTrackStyle(RING_1_RADIUS, 6)} />
+          <div className="wheel-ring-track pointer-events-none absolute rounded-full" style={ringTrackStyle(RING_1_RADIUS, 6)} />
 
           {/* Ring 2 track — only appears once a category is picked, thinner than ring 1. */}
           {step === 'subcategory' && (
-            <div className="pointer-events-none absolute rounded-full border-teal/30" style={ringTrackStyle(RING_2_RADIUS, 3)} />
+            <div className="wheel-ring-track pointer-events-none absolute rounded-full" style={ringTrackStyle(RING_2_RADIUS, 3)} />
           )}
 
           {step === 'closed' && (
@@ -464,7 +464,7 @@ export function EntryWheel({
           </button>
 
           <div className="relative">
-            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 font-display text-3xl font-semibold text-ink-soft">
+            <span className="amount-prefix pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 font-display text-3xl font-semibold text-ink-soft">
               $
             </span>
             <input
