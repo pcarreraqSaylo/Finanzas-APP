@@ -459,7 +459,7 @@ export function EntryWheel({
 
       {step === 'amount' && (
         <div className="animate-panel-fade-in flex w-full max-w-xs flex-col gap-4">
-          <button type="button" onClick={reset} className="self-center text-sm text-ink-soft">
+          <button type="button" onClick={reset} className="self-center text-sm font-medium text-ink">
             Cancelar ×
           </button>
 

@@ -91,7 +91,6 @@ button,
 input,
 select {
   font-family: inherit;
-  color: inherit;
 }
 
 /* Ring tracks around the Entry Wheel — visible teal-on-cream normally, but a

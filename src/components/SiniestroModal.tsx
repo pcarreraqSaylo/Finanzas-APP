@@ -78,7 +78,7 @@ export function SiniestroModal({ open, onClose }: { open: boolean; onClose: () =
       <div className="w-full max-w-md rounded-t-app bg-surface p-4 pb-6" onClick={(e) => e.stopPropagation()}>
         <div className="mb-1 flex items-center justify-between">
           <span className="font-display text-lg font-semibold">Agregar Siniestro</span>
-          <button type="button" onClick={close} className="text-sm text-ink-soft">
+          <button type="button" onClick={close} className="text-sm font-medium text-ink">
             Cancelar
           </button>
         </div>

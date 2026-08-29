@@ -147,7 +147,7 @@ export function IncomeButton() {
           <span className="font-display text-lg font-semibold">
             {editingRuleId ? 'Editar ingreso recurrente' : 'Agregar Ingreso'}
           </span>
-          <button type="button" onClick={reset} className="text-sm text-ink-soft">
+          <button type="button" onClick={reset} className="text-sm font-medium text-ink">
             Cancelar
           </button>
         </div>
