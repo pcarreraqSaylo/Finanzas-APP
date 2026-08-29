@@ -122,8 +122,8 @@ export function SwipeableTabs({ homeResetKey }: { homeResetKey?: number }) {
   return (
     <div
       ref={containerRef}
-      className={`relative flex min-h-0 flex-1 overflow-hidden ${dragX !== 0 || animating ? 'select-none' : ''}`}
-      style={{ touchAction: 'pan-y' }}
+      className="relative flex min-h-0 flex-1 select-none overflow-hidden"
+      style={{ touchAction: 'pan-y', WebkitTouchCallout: 'none' }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
