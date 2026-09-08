@@ -5,7 +5,7 @@ const TABS = [
   { to: '/transactions', label: 'Movs', icon: 'movimientos', end: false },
   { to: '/analytics', label: 'Stats', icon: 'stats', end: false },
   { to: '/categories', label: 'Categorías', icon: 'administrativo', end: false }, // TODO: placeholder icon — no dedicated "categories" glyph exists yet
-  { to: '/settings', label: 'Ajustes', icon: 'ajustes', end: false },
+  { to: '/settings', label: 'Perfil', icon: 'ajustes', end: false },
 ]
 
 export function BottomNav({ onHomeClick }: { onHomeClick?: () => void }) {

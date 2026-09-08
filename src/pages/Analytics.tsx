@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo, useState } from 'react'
 import { db } from '../db/db'
-import { currentYearMonth, monthRange, shiftYearMonth } from '../db/repo'
+import { currentYearMonth, monthRange, shiftYearMonth, todayLocalDate } from '../db/repo'
 import { CategoryBadge } from '../components/CategoryBadge'
 
 function formatMoney(amount: number, currency: string) {
@@ -12,6 +12,10 @@ function formatMonthLabel(yearMonth: string) {
   const [year, month] = yearMonth.split('-').map(Number)
   const label = new Date(year, month - 1, 1).toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })
   return label.charAt(0).toUpperCase() + label.slice(1)
+}
+
+function formatThousands(amount: number) {
+  return `$${(amount / 1000).toLocaleString('es-MX', { maximumFractionDigits: 1 })}k`
 }
 
 function formatMonthShort(yearMonth: string) {
@@ -71,22 +75,24 @@ export function Analytics() {
   const currency = settings?.currencyDefault ?? 'MXN'
 
   const data = useLiveQuery(async () => {
-    const [txs, splits, categories, subcategories, whoOptions] = await Promise.all([
+    const [txs, splits, categories, subcategories, whoOptions, trips] = await Promise.all([
       db.transactions.toArray(),
       db.transactionSplits.toArray(),
       db.categories.toArray(),
       db.subcategories.toArray(),
       db.whoOptions.toArray(),
+      db.trips.toArray(),
     ])
-    return { txs, splits, categories, subcategories, whoOptions }
+    return { txs, splits, categories, subcategories, whoOptions, trips }
   })
 
   const stats = useMemo(() => {
     if (!data) return null
-    const { txs, splits, categories, subcategories, whoOptions } = data
+    const { txs, splits, categories, subcategories, whoOptions, trips } = data
     const categoryById = new Map(categories.map((c) => [c.id, c]))
     const subcategoryById = new Map(subcategories.map((s) => [s.id, s]))
     const whoById = new Map(whoOptions.map((w) => [w.id, w]))
+    const tripById = new Map(trips.map((t) => [t.id, t]))
     const txById = new Map(txs.map((t) => [t.id, t]))
 
     function totalsForRange(start: string, end: string) {
@@ -125,7 +131,7 @@ export function Analytics() {
       const now = new Date()
       const year = now.getFullYear()
       periodStart = `${year}-01-01`
-      periodEnd = now.toISOString().slice(0, 10)
+      periodEnd = todayLocalDate()
       compareTotals = totalsForRange(`${year - 1}-01-01`, `${year - 1}-${periodEnd.slice(5)}`)
       compareLabel = 'Vs. año pasado'
       periodLabel = `${year} · año hasta la fecha`
@@ -136,31 +142,58 @@ export function Analytics() {
     const periodDays = daysBetween(periodStart, periodEnd)
 
     const expenseTxIds = new Set(current.txs.filter((t) => t.type === 'expense').map((t) => t.id))
+    // Isolated trips (mergeIntoCategories: false, the default) get one synthetic row
+    // keyed "trip:<id>" instead of scattering across real categories — matches Trips'
+    // own "isolated by default" model. A trip with mergeIntoCategories: true behaves
+    // like normal spend and is bucketed by its real category as usual.
     const byCategory = new Map<string, number>()
     const bySubcategory = new Map<string, Map<string, number>>()
     const byWho = new Map<string, number>()
 
+    function tripKey(tripId: string) {
+      return `trip:${tripId}`
+    }
+
     for (const split of splits) {
       if (!expenseTxIds.has(split.transactionId)) continue
-      byCategory.set(split.categoryId, (byCategory.get(split.categoryId) ?? 0) + split.amount)
-      if (split.subcategoryId) {
-        const subMap = bySubcategory.get(split.categoryId) ?? new Map<string, number>()
-        subMap.set(split.subcategoryId, (subMap.get(split.subcategoryId) ?? 0) + split.amount)
-        bySubcategory.set(split.categoryId, subMap)
-      }
       const tx = txById.get(split.transactionId)
+      const trip = tx?.tripId ? tripById.get(tx.tripId) : undefined
+      const isolatedTrip = trip && !trip.mergeIntoCategories
+
+      const key = isolatedTrip ? tripKey(trip.id) : split.categoryId
+      byCategory.set(key, (byCategory.get(key) ?? 0) + split.amount)
+      // Breakdown key differs by row type: an isolated trip breaks down by real
+      // category (what was spent on), a normal category breaks down by subcategory.
+      const breakdownId = isolatedTrip ? split.categoryId : split.subcategoryId
+      if (breakdownId) {
+        const subMap = bySubcategory.get(key) ?? new Map<string, number>()
+        subMap.set(breakdownId, (subMap.get(breakdownId) ?? 0) + split.amount)
+        bySubcategory.set(key, subMap)
+      }
       if (tx?.whoId) byWho.set(tx.whoId, (byWho.get(tx.whoId) ?? 0) + split.amount)
     }
 
     const categoryRows = Array.from(byCategory.entries())
-      .map(([categoryId, amount]) => ({
-        category: categoryById.get(categoryId),
-        amount,
-        pct: current.expense ? Math.round((amount / current.expense) * 100) : 0,
-        subcategories: Array.from((bySubcategory.get(categoryId) ?? new Map()).entries())
-          .map(([subId, amt]) => ({ subcategory: subcategoryById.get(subId), amount: amt }))
-          .sort((a, b) => b.amount - a.amount),
-      }))
+      .map(([key, amount]) => {
+        const isTrip = key.startsWith('trip:')
+        const trip = isTrip ? tripById.get(key.slice(5)) : undefined
+        const name = isTrip ? `Viaje: ${trip?.name ?? '—'}` : (categoryById.get(key)?.name ?? '—')
+        const breakdown = Array.from((bySubcategory.get(key) ?? new Map()).entries())
+          .map(([id, amt]) => ({
+            id,
+            name: isTrip ? (categoryById.get(id)?.name ?? '—') : (subcategoryById.get(id)?.name ?? 'Sin subcategoría'),
+            amount: amt,
+          }))
+          .sort((a, b) => b.amount - a.amount)
+        return {
+          key,
+          name,
+          isTrip,
+          amount,
+          pct: current.expense ? Math.round((amount / current.expense) * 100) : 0,
+          breakdown,
+        }
+      })
       .sort((a, b) => b.amount - a.amount)
 
     const whoRows = Array.from(byWho.entries())
@@ -298,7 +331,7 @@ export function Analytics() {
           value={stats.deltaVsCompare === null ? '—' : `${stats.deltaVsCompare > 0 ? '+' : ''}${stats.deltaVsCompare}%`}
         />
         {dimension === 'category' ? (
-          <StatTile label="Top categoría" value={topCategory ? `${topCategory.pct}%` : '—'} sub={topCategory?.category?.name} />
+          <StatTile label="Top categoría" value={topCategory ? `${topCategory.pct}%` : '—'} sub={topCategory?.name} />
         ) : (
           <StatTile label="Top Who" value={topWho ? `${topWho.pct}%` : '—'} sub={topWho?.who?.name} />
         )}
@@ -314,19 +347,24 @@ export function Analytics() {
           <>
             {stats.categoryRows.length === 0 && <p className="text-sm text-ink-soft">Sin gastos en este periodo.</p>}
             {stats.categoryRows.map((row) => {
-              const categoryId = row.category?.id ?? ''
-              const isExpanded = expandedCategoryId === categoryId
+              const isExpanded = expandedCategoryId === row.key
               return (
-                <div key={categoryId}>
+                <div key={row.key}>
                   <button
                     type="button"
-                    onClick={() => setExpandedCategoryId(isExpanded ? null : categoryId)}
+                    onClick={() => setExpandedCategoryId(isExpanded ? null : row.key)}
                     className="flex w-full items-center gap-2 py-1.5 text-left"
                   >
-                    <CategoryBadge name={row.category?.name ?? '—'} size="sm" />
+                    {row.isTrip ? (
+                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white p-1.5 ring-1 ring-teal/30">
+                        <img src="/icons/viajes.png" alt="" className="h-full w-full object-contain" />
+                      </span>
+                    ) : (
+                      <CategoryBadge name={row.name} size="sm" />
+                    )}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="truncate">{row.category?.name}</span>
+                        <span className="truncate">{row.name}</span>
                         <span className="ml-2 shrink-0 font-medium">{formatMoney(row.amount, currency)}</span>
                       </div>
                       <div className="mt-1 h-2 w-full rounded-full bg-pearl">
@@ -335,12 +373,12 @@ export function Analytics() {
                     </div>
                     <span className="w-9 shrink-0 text-right text-xs text-ink-soft">{row.pct}%</span>
                   </button>
-                  {isExpanded && row.subcategories.length > 0 && (
+                  {isExpanded && row.breakdown.length > 0 && (
                     <div className="ml-10 flex flex-col gap-1 pb-2">
-                      {row.subcategories.map((s) => (
-                        <div key={s.subcategory?.id ?? 'none'} className="flex items-center justify-between text-xs text-ink-soft">
-                          <span>{s.subcategory?.name ?? 'Sin subcategoría'}</span>
-                          <span>{formatMoney(s.amount, currency)}</span>
+                      {row.breakdown.map((b) => (
+                        <div key={b.id} className="flex items-center justify-between text-xs text-ink-soft">
+                          <span>{b.name}</span>
+                          <span>{formatMoney(b.amount, currency)}</span>
                         </div>
                       ))}
                     </div>
@@ -400,6 +438,27 @@ export function Analytics() {
               </div>
             )
           })}
+        </div>
+
+        <div className="mt-1 overflow-x-auto">
+          <table className="w-full text-[11px]">
+            <thead>
+              <tr className="text-ink-soft">
+                <th className="py-1 text-left font-medium">Mes</th>
+                <th className="py-1 text-right font-medium">Ingreso (miles)</th>
+                <th className="py-1 text-right font-medium">Gasto (miles)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.record.map((m) => (
+                <tr key={m.yearMonth} className="border-t border-ink/10">
+                  <td className="py-1 text-left">{formatMonthShort(m.yearMonth)}</td>
+                  <td className="py-1 text-right text-income">{formatThousands(m.income)}</td>
+                  <td className="py-1 text-right text-expense">{formatThousands(m.expense)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </section>
 

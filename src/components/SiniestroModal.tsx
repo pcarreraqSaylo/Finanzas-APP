@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { db } from '../db/db'
-import { createTransaction, deleteTransaction, type SplitInput } from '../db/repo'
+import { createTransaction, deleteTransaction, todayLocalDate, type SplitInput } from '../db/repo'
 
 function formatAmountDisplay(raw: string) {
   if (!raw) return ''
@@ -19,7 +19,7 @@ export function SiniestroModal({ open, onClose }: { open: boolean; onClose: () =
   const [whoId, setWhoId] = useState<string | null>(null)
   const [showWho, setShowWho] = useState(false)
   const [note, setNote] = useState('')
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState(() => todayLocalDate())
   const [undoTx, setUndoTx] = useState<string | null>(null)
 
   const category = useLiveQuery(() => db.categories.where('name').equals('Siniestros').first())
@@ -31,7 +31,7 @@ export function SiniestroModal({ open, onClose }: { open: boolean; onClose: () =
     setWhoId(null)
     setShowWho(false)
     setNote('')
-    setDate(new Date().toISOString().slice(0, 10))
+    setDate(todayLocalDate())
   }
 
   function close() {
@@ -125,8 +125,10 @@ export function SiniestroModal({ open, onClose }: { open: boolean; onClose: () =
                   key={who.id}
                   type="button"
                   onClick={() => setWhoId(who.id === whoId ? null : who.id)}
-                  className={`rounded-app px-3 py-1.5 text-sm bg-teal text-white ${
-                    who.id === whoId ? 'ring-2 ring-white' : 'opacity-80'
+                  className={`rounded-app border px-3 py-1.5 text-sm font-medium ${
+                    who.id === whoId
+                      ? 'border-teal bg-teal text-white'
+                      : 'border-ink/10 bg-pearl text-ink-soft'
                   }`}
                 >
                   {who.name}

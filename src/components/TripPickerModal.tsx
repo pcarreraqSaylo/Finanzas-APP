@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { v4 as uuid } from 'uuid'
 import { db } from '../db/db'
+import { todayLocalDate } from '../db/repo'
 import { useTripMode } from '../context/TripMode'
 
 export function TripPickerModal({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -29,7 +30,7 @@ export function TripPickerModal({ open, onClose }: { open: boolean; onClose: () 
     await db.trips.add({
       id,
       name: trimmed,
-      startDate: new Date().toISOString().slice(0, 10),
+      startDate: todayLocalDate(),
       endDate: null,
       mergeIntoCategories: false,
     })

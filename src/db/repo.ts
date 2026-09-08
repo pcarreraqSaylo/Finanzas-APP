@@ -58,6 +58,40 @@ export async function deleteTransaction(transactionId: string) {
   })
 }
 
+export interface UpdateTransactionInput {
+  id: string
+  date: string
+  note?: string | null
+  whoId?: string | null
+  // Only set for transactions with a single split — a split transaction's
+  // category breakdown isn't editable from here, only its date/note/who.
+  singleSplit?: { categoryId: string; subcategoryId: string | null; amount: number }
+}
+
+// Edits the transaction in place — never creates a new row, so history/CSV exports
+// stay stable across edits.
+export async function updateTransaction(input: UpdateTransactionInput) {
+  await db.transaction('rw', db.transactions, db.transactionSplits, async () => {
+    await db.transactions.update(input.id, {
+      date: input.date,
+      note: input.note ?? null,
+      whoId: input.whoId ?? null,
+      ...(input.singleSplit ? { totalAmount: input.singleSplit.amount } : {}),
+      updatedAt: Date.now(),
+    })
+    if (input.singleSplit) {
+      const splits = await db.transactionSplits.where('transactionId').equals(input.id).toArray()
+      if (splits[0]) {
+        await db.transactionSplits.update(splits[0].id, {
+          categoryId: input.singleSplit.categoryId,
+          subcategoryId: input.singleSplit.subcategoryId,
+          amount: input.singleSplit.amount,
+        })
+      }
+    }
+  })
+}
+
 export function monthRange(yearMonth: string): { start: string; end: string } {
   // yearMonth: "YYYY-MM"
   const [year, month] = yearMonth.split('-').map(Number)
@@ -71,6 +105,15 @@ export function shiftYearMonth(yearMonth: string, delta: number): string {
   const [year, month] = yearMonth.split('-').map(Number)
   const d = new Date(year, month - 1 + delta, 1)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+// Local (not UTC) YYYY-MM-DD for "today". Date#toISOString() converts to UTC first,
+// which silently shifts the date near midnight for any negative-UTC-offset timezone
+// (e.g. 9pm in Mexico City is already past midnight UTC) — this stays anchored to
+// the device's actual local calendar day.
+export function todayLocalDate(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 export function currentYearMonth(): string {
@@ -90,7 +133,6 @@ export interface CreateRecurringIncomeInput {
   amount: number
   currency: string
   dayOfMonth: number
-  whoId?: string | null
   note?: string | null
 }
 
@@ -106,7 +148,40 @@ export async function createRecurringIncome(input: CreateRecurringIncomeInput) {
     amount: input.amount,
     currency: input.currency,
     dayOfMonth: input.dayOfMonth,
-    startDate: new Date().toISOString().slice(0, 10),
+    startDate: todayLocalDate(),
+    endDate: null,
+    active: true,
+    whoId: null,
+    note: input.note ?? null,
+  })
+  await generateRecurringTransaction(ruleId, currentYearMonth())
+  return ruleId
+}
+
+export interface CreateRecurringExpenseInput {
+  categoryId: string
+  subcategoryId?: string | null
+  amount: number
+  currency: string
+  dayOfMonth: number
+  whoId?: string | null
+  note?: string | null
+}
+
+// Recurring expense (Netflix, phone bill, etc.) — same engine as recurring income
+// (see createRecurringIncome above and generateRecurringTransaction/
+// ensureRecurringTransactionsForCurrentMonth below, which are type-agnostic).
+export async function createRecurringExpense(input: CreateRecurringExpenseInput) {
+  const ruleId = uuid()
+  await db.recurringRules.add({
+    id: ruleId,
+    categoryId: input.categoryId,
+    subcategoryId: input.subcategoryId ?? null,
+    type: 'expense',
+    amount: input.amount,
+    currency: input.currency,
+    dayOfMonth: input.dayOfMonth,
+    startDate: todayLocalDate(),
     endDate: null,
     active: true,
     whoId: input.whoId ?? null,

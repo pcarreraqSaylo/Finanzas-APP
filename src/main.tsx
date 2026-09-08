@@ -12,6 +12,10 @@ seedIfEmpty()
   .then(() => ensureSiniestrosCategory())
   .then(() => ensureRecurringTransactionsForCurrentMonth())
 
+// iOS Safari still allows pinch-zoom via this non-standard gesture event regardless
+// of the viewport meta's user-scalable=no — this is the app-should-feel-fixed fix.
+document.addEventListener('gesturestart', (e) => e.preventDefault())
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>

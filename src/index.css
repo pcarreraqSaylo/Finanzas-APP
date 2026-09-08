@@ -55,6 +55,11 @@
    are left alone so buttons/badges still read correctly. */
 .trip-mode {
   color-scheme: dark;
+  /* body's `color: var(--color-ink)` is declared on an ancestor of this div, so it
+     resolves to the light-mode value once and that computed color just inherits down
+     — redefining --color-ink here doesn't reach back up to fix it. Redeclaring color
+     directly on this element re-resolves it correctly for everything inside. */
+  color: var(--color-ink);
   --color-cream: #1b2023;
   --color-eggshell: #1f2528;
   --color-pearl: #14181a;
@@ -74,8 +79,16 @@
     'ROND' 0;
 }
 
+html,
 body {
   margin: 0;
+  /* Blocks the double-tap-to-zoom gesture (pinch is blocked in main.tsx — iOS Safari
+     ignores the viewport meta's user-scalable=no for that one) while still allowing
+     normal vertical scroll/pan. */
+  touch-action: manipulation;
+}
+
+body {
   background: var(--color-pearl);
   color: var(--color-ink);
   min-height: 100svh;

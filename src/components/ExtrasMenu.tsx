@@ -1,15 +1,33 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { db } from '../db/db'
 import { useTripMode } from '../context/TripMode'
 import { SiniestroModal } from './SiniestroModal'
 import { TripPickerModal } from './TripPickerModal'
+import { RecurringPaymentsModal } from './RecurringPaymentsModal'
 
-export function ExtrasMenu() {
+export function ExtrasMenu({
+  forceCloseKey,
+  onOpenChange,
+}: {
+  forceCloseKey?: number
+  onOpenChange?: (open: boolean) => void
+}) {
   const [open, setOpen] = useState(false)
   const [siniestroOpen, setSiniestroOpen] = useState(false)
   const [tripPickerOpen, setTripPickerOpen] = useState(false)
+  const [recurringOpen, setRecurringOpen] = useState(false)
+
+  useEffect(() => {
+    onOpenChange?.(open)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  useEffect(() => {
+    // Another panel (wheel/income) opened — mutually exclusive, so this one closes.
+    if (forceCloseKey !== undefined) setOpen(false)
+  }, [forceCloseKey])
 
   const { activeTripId, endTrip } = useTripMode()
   const activeTrip = useLiveQuery(
@@ -41,6 +59,16 @@ export function ExtrasMenu() {
       onClick: () => {
         setOpen(false)
         setSiniestroOpen(true)
+      },
+    },
+    {
+      key: 'pagos-recurrentes',
+      label: 'Pagos recurrentes',
+      icon: '/icons/suscripciones.png',
+      active: false,
+      onClick: () => {
+        setOpen(false)
+        setRecurringOpen(true)
       },
     },
     {
@@ -101,6 +129,7 @@ export function ExtrasMenu() {
 
       <SiniestroModal open={siniestroOpen} onClose={() => setSiniestroOpen(false)} />
       <TripPickerModal open={tripPickerOpen} onClose={() => setTripPickerOpen(false)} />
+      <RecurringPaymentsModal open={recurringOpen} onClose={() => setRecurringOpen(false)} />
     </>
   )
 }

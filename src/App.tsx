@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { BottomNav } from './components/BottomNav'
 import { SwipeableTabs } from './components/SwipeableTabs'
@@ -15,6 +15,19 @@ function App() {
   // watch it to snap back to the closed wheel regardless of where they currently are.
   const [homeResetKey, setHomeResetKey] = useState(0)
   const { activeTripId } = useTripMode()
+
+  // The iPhone status bar takes its color from <meta name="theme-color">, which is
+  // static in index.html — without this it stayed teal (Home's color) on every page,
+  // clashing with the pearl background everywhere else. Home keeps teal (KpiStrip's
+  // own background); Trips matches whatever the app shell is currently showing there
+  // (dark once Trip Mode is on); everything else matches the app shell's pearl.
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="theme-color"]')
+    if (!meta) return
+    const isHome = location.pathname === '/'
+    const color = isHome ? '#008080' : isTrips && activeTripId ? '#14181a' : '#f5f2e8'
+    meta.setAttribute('content', color)
+  }, [location.pathname, isTrips, activeTripId])
 
   return (
     <div className="flex min-h-svh justify-center bg-ink/5">

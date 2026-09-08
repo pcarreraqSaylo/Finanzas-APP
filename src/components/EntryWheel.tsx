@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { v4 as uuid } from 'uuid'
 import { db } from '../db/db'
 import type { Kind, Subcategory } from '../db/types'
-import { createTransaction, deleteTransaction, type SplitInput } from '../db/repo'
+import { createTransaction, deleteTransaction, todayLocalDate, type SplitInput } from '../db/repo'
 import { CategoryBadge } from './CategoryBadge'
 import { useTripMode } from '../context/TripMode'
 
@@ -138,9 +138,11 @@ function ringTrackStyle(radius: number, thickness: number): CSSProperties {
 
 export function EntryWheel({
   resetKey,
+  forceCloseKey,
   onOpenChange,
 }: {
   resetKey?: number
+  forceCloseKey?: number
   onOpenChange?: (open: boolean) => void
 }) {
   const [step, setStep] = useState<Step>('closed')
@@ -151,7 +153,7 @@ export function EntryWheel({
   const [whoId, setWhoId] = useState<string | null>(null)
   const [showWho, setShowWho] = useState(false)
   const [note, setNote] = useState('')
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState(() => todayLocalDate())
   const [undoTx, setUndoTx] = useState<string | null>(null)
   const [pendingCategoryId, setPendingCategoryId] = useState<string | null>(null)
   const pendingRef = useRef<string | null>(null)
@@ -199,7 +201,7 @@ export function EntryWheel({
     setWhoId(null)
     setShowWho(false)
     setNote('')
-    setDate(new Date().toISOString().slice(0, 10))
+    setDate(todayLocalDate())
     setAddingSubcategory(false)
     setNewSubcategoryName('')
   }
@@ -211,6 +213,12 @@ export function EntryWheel({
     if (resetKey !== undefined) reset()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey])
+
+  useEffect(() => {
+    // Another panel (income/extras) opened — mutually exclusive, so the wheel closes.
+    if (forceCloseKey !== undefined) reset()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forceCloseKey])
 
   async function createAndSelectSubcategory() {
     const name = newSubcategoryName.trim()
@@ -290,7 +298,7 @@ export function EntryWheel({
     setWhoId(null)
     setShowWho(false)
     setNote('')
-    setDate(new Date().toISOString().slice(0, 10))
+    setDate(todayLocalDate())
     setStep('subcategory')
     setTimeout(() => setUndoTx((current) => (current === id ? null : current)), 5000)
   }
@@ -496,8 +504,10 @@ export function EntryWheel({
                   key={who.id}
                   type="button"
                   onClick={() => setWhoId(who.id === whoId ? null : who.id)}
-                  className={`rounded-app px-3 py-1.5 text-sm bg-teal text-white ${
-                    who.id === whoId ? 'ring-2 ring-white' : 'opacity-80'
+                  className={`rounded-app border px-3 py-1.5 text-sm font-medium ${
+                    who.id === whoId
+                      ? 'border-teal bg-teal text-white'
+                      : 'border-ink/10 bg-pearl text-ink-soft'
                   }`}
                 >
                   {who.name}

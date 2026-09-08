@@ -72,4 +72,7 @@ export interface UserSettings {
   id: 'default' // single local profile for now, one row
   currencyDefault: string
   theme: 'blue' | 'green'
+  name?: string
+  age?: number | null
+  location?: string
 }

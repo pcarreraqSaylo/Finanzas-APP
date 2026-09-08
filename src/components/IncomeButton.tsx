@@ -1,11 +1,12 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { db } from '../db/db'
 import {
   createRecurringIncome,
   createTransaction,
   deleteTransaction,
   stopRecurringRule,
+  todayLocalDate,
   updateRecurringRuleAmount,
   type SplitInput,
 } from '../db/repo'
@@ -26,21 +27,30 @@ function formatMoney(amount: number, currency: string) {
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount)
 }
 
-export function IncomeButton() {
+function clampDayOfMonth(raw: string) {
+  return Math.min(31, Math.max(1, Number(raw) || 1))
+}
+
+export function IncomeButton({
+  forceCloseKey,
+  onOpenChange,
+}: {
+  forceCloseKey?: number
+  onOpenChange?: (open: boolean) => void
+}) {
   const [step, setStep] = useState<Step>('closed')
   const [mode, setMode] = useState<Mode>('once')
   const [categoryId, setCategoryId] = useState<string | null>(null)
   const [amount, setAmount] = useState('')
-  const [whoId, setWhoId] = useState<string | null>(null)
-  const [showWho, setShowWho] = useState(false)
   const [note, setNote] = useState('')
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
-  const [dayOfMonth, setDayOfMonth] = useState(() => new Date().getDate())
+  const [date, setDate] = useState(() => todayLocalDate())
+  // Kept as free-typed text (not a clamped number) so clearing "29" to type "15" doesn't
+  // snap back to "1" mid-edit — clamping only happens on blur/save, see clampDayOfMonth.
+  const [dayOfMonth, setDayOfMonth] = useState(() => String(new Date().getDate()))
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null)
   const [undoTx, setUndoTx] = useState<string | null>(null)
 
   const categories = useLiveQuery(() => db.categories.where('kind').equals('income').sortBy('sortOrder'))
-  const whoOptions = useLiveQuery(() => db.whoOptions.orderBy('sortOrder').toArray())
   const settings = useLiveQuery(() => db.userSettings.get('default'))
   const recurringRules = useLiveQuery(() =>
     db.recurringRules.toArray().then((rules) => rules.filter((r) => r.type === 'income' && r.active)),
@@ -53,11 +63,9 @@ export function IncomeButton() {
     setMode('once')
     setCategoryId(null)
     setAmount('')
-    setWhoId(null)
-    setShowWho(false)
     setNote('')
-    setDate(new Date().toISOString().slice(0, 10))
-    setDayOfMonth(new Date().getDate())
+    setDate(todayLocalDate())
+    setDayOfMonth(String(new Date().getDate()))
     setEditingRuleId(null)
   }
 
@@ -86,8 +94,7 @@ export function IncomeButton() {
         categoryId,
         amount: value,
         currency: settings?.currencyDefault ?? 'MXN',
-        dayOfMonth,
-        whoId,
+        dayOfMonth: clampDayOfMonth(dayOfMonth),
         note: note || null,
       })
       reset()
@@ -100,7 +107,6 @@ export function IncomeButton() {
       type: 'income',
       currency: settings?.currencyDefault ?? 'MXN',
       note: note || null,
-      whoId,
       splits,
     })
     setUndoTx(id)
@@ -119,6 +125,17 @@ export function IncomeButton() {
     await deleteTransaction(undoTx)
     setUndoTx(null)
   }
+
+  useEffect(() => {
+    onOpenChange?.(step !== 'closed')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step])
+
+  useEffect(() => {
+    // Another panel (wheel/extras) opened — mutually exclusive, so this one closes.
+    if (forceCloseKey !== undefined) reset()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forceCloseKey])
 
   if (step === 'closed') {
     return (
@@ -254,11 +271,14 @@ export function IncomeButton() {
                   <label className="flex items-center justify-between gap-3 rounded-app border border-ink/10 bg-surface px-3 py-2 text-sm">
                     Día del mes
                     <input
-                      type="number"
-                      min={1}
-                      max={31}
+                      type="text"
+                      inputMode="numeric"
                       value={dayOfMonth}
-                      onChange={(e) => setDayOfMonth(Math.min(31, Math.max(1, Number(e.target.value) || 1)))}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/\D/g, '')
+                        if (raw.length <= 2) setDayOfMonth(raw)
+                      }}
+                      onBlur={() => setDayOfMonth(String(clampDayOfMonth(dayOfMonth)))}
                       className="w-16 rounded-app border border-ink/10 bg-pearl px-2 py-1 text-center outline-none"
                     />
                   </label>
@@ -269,31 +289,6 @@ export function IncomeButton() {
                     onChange={(e) => setDate(e.target.value)}
                     className="rounded-app border border-ink/10 bg-surface px-3 py-2 text-sm"
                   />
-                )}
-
-                {!showWho && !whoId ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowWho(true)}
-                    className="self-center rounded-app bg-cornflower px-3 py-1.5 text-sm text-white active:scale-95"
-                  >
-                    + Agregar con quién
-                  </button>
-                ) : (
-                  <div className="flex flex-wrap justify-center gap-2">
-                    {whoOptions?.map((who) => (
-                      <button
-                        key={who.id}
-                        type="button"
-                        onClick={() => setWhoId(who.id === whoId ? null : who.id)}
-                        className={`rounded-app px-3 py-1.5 text-sm bg-cornflower text-white ${
-                          who.id === whoId ? 'ring-2 ring-white' : 'opacity-80'
-                        }`}
-                      >
-                        {who.name}
-                      </button>
-                    ))}
-                  </div>
                 )}
 
                 <input

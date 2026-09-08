@@ -1,7 +1,10 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import { useState } from 'react'
 import { db } from '../db/db'
-import { deleteTransaction, exportTransactionsCsv } from '../db/repo'
+import { deleteTransaction, exportTransactionsCsv, todayLocalDate } from '../db/repo'
 import { CategoryBadge } from '../components/CategoryBadge'
+import { EditTransactionModal } from '../components/EditTransactionModal'
+import type { Transaction } from '../db/types'
 
 function formatMoney(amount: number, currency: string) {
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount)
@@ -13,12 +16,14 @@ async function handleDownloadCsv() {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = `finanzas-movimientos-${new Date().toISOString().slice(0, 10)}.csv`
+  link.download = `finanzas-movimientos-${todayLocalDate()}.csv`
   link.click()
   URL.revokeObjectURL(url)
 }
 
 export function Transactions() {
+  const [editingTx, setEditingTx] = useState<Transaction | null>(null)
+
   const rows = useLiveQuery(async () => {
     const txs = await db.transactions.toArray()
     // Chronological: by date first, then by the exact moment it was logged within that
@@ -89,15 +94,33 @@ export function Transactions() {
               </span>
               <button
                 type="button"
-                onClick={() => deleteTransaction(tx.id)}
-                className="text-[10px] text-ink-soft underline"
+                onClick={() => setEditingTx(tx)}
+                aria-label="Editar"
+                className="flex h-6 w-6 shrink-0 items-center justify-center text-cornflower active:scale-90"
               >
-                Borrar
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => deleteTransaction(tx.id)}
+                aria-label="Borrar"
+                className="flex h-6 w-6 shrink-0 items-center justify-center text-expense active:scale-90"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2m-9 0 1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13" />
+                </svg>
               </button>
             </div>
           </div>
         ))}
       </div>
+      {editingTx && <EditTransactionModal transaction={editingTx} onClose={() => setEditingTx(null)} />}
     </div>
   )
 }

@@ -2,10 +2,11 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { v4 as uuid } from 'uuid'
 import { db } from '../db/db'
+import { todayLocalDate } from '../db/repo'
 
 export function Trips() {
   const [name, setName] = useState('')
-  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [startDate, setStartDate] = useState(() => todayLocalDate())
   const [mergeIntoCategories, setMergeIntoCategories] = useState(false)
 
   const trips = useLiveQuery(() => db.trips.orderBy('startDate').reverse().toArray())
