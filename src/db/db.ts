@@ -1,6 +1,7 @@
-import Dexie, { type EntityTable } from 'dexie'
+import Dexie, { type EntityTable, type Table } from 'dexie'
 import type {
   Category,
+  PendingDelete,
   RecurringRule,
   Subcategory,
   Transaction,
@@ -9,6 +10,23 @@ import type {
   UserSettings,
   WhoOption,
 } from './types'
+
+// Auto-stamps `synced: false` on any ordinary create/update to a syncable table.
+// The sync engine (db/sync.ts) is the only code that ever sets `synced: true`, and
+// it does so by including that field explicitly in its own writes — which these
+// hooks are written to respect rather than override. Loosely typed (any) rather
+// than generic over each table's real row type — Dexie's hook() overloads don't
+// resolve cleanly through a generic `Table<T>` parameter, and every syncable row
+// shape here already carries an optional `synced?: boolean` field regardless.
+function registerSyncHooks(table: Table<any, any>) {
+  table.hook('creating', (_primKey: unknown, obj: any) => {
+    if (obj.synced === undefined) obj.synced = false
+  })
+  table.hook('updating', (modifications: any) => {
+    if (!('synced' in modifications)) return { synced: false }
+    return undefined
+  })
+}
 
 class FinanzasDB extends Dexie {
   categories!: EntityTable<Category, 'id'>
@@ -19,6 +37,9 @@ class FinanzasDB extends Dexie {
   transactions!: EntityTable<Transaction, 'id'>
   transactionSplits!: EntityTable<TransactionSplit, 'id'>
   userSettings!: EntityTable<UserSettings, 'id'>
+  // Rows deleted locally that still need their matching remote row deleted on
+  // Supabase — see the three delete functions in db/repo.ts and db/sync.ts.
+  pendingDeletes!: EntityTable<PendingDelete, 'id'>
 
   constructor(name: string) {
     super(name)
@@ -32,6 +53,28 @@ class FinanzasDB extends Dexie {
       transactionSplits: 'id, transactionId, categoryId, subcategoryId',
       userSettings: 'id',
     })
+    // Purely additive — a new table, and `synced` isn't an indexed field on any
+    // existing one, so this needs no upgrade() migration of existing rows.
+    this.version(2).stores({
+      categories: 'id, kind, sortOrder, name',
+      subcategories: 'id, categoryId, sortOrder, name',
+      trips: 'id, startDate',
+      whoOptions: 'id, sortOrder',
+      recurringRules: 'id, categoryId, active',
+      transactions: 'id, date, type, tripId, whoId, recurringRuleId',
+      transactionSplits: 'id, transactionId, categoryId, subcategoryId',
+      userSettings: 'id',
+      pendingDeletes: '++id, table, rowId',
+    })
+
+    registerSyncHooks(this.categories)
+    registerSyncHooks(this.subcategories)
+    registerSyncHooks(this.trips)
+    registerSyncHooks(this.whoOptions)
+    registerSyncHooks(this.recurringRules)
+    registerSyncHooks(this.transactions)
+    registerSyncHooks(this.transactionSplits)
+    registerSyncHooks(this.userSettings)
   }
 }
 

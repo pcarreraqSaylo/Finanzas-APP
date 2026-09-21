@@ -7,6 +7,7 @@ export interface Category {
   icon: string
   sortOrder: number
   createdAt: number
+  synced?: boolean
 }
 
 export interface Subcategory {
@@ -15,6 +16,7 @@ export interface Subcategory {
   name: string
   icon: string | null
   sortOrder: number
+  synced?: boolean
 }
 
 export interface Trip {
@@ -23,12 +25,14 @@ export interface Trip {
   startDate: string
   endDate: string | null
   mergeIntoCategories: boolean
+  synced?: boolean
 }
 
 export interface WhoOption {
   id: string
   name: string
   sortOrder: number
+  synced?: boolean
 }
 
 export interface RecurringRule {
@@ -44,6 +48,7 @@ export interface RecurringRule {
   active: boolean
   whoId: string | null
   note: string | null
+  synced?: boolean
 }
 
 export interface Transaction {
@@ -58,6 +63,7 @@ export interface Transaction {
   whoId: string | null
   createdAt: number
   updatedAt: number
+  synced?: boolean
 }
 
 export interface TransactionSplit {
@@ -66,6 +72,7 @@ export interface TransactionSplit {
   categoryId: string
   subcategoryId: string | null
   amount: number
+  synced?: boolean
 }
 
 export interface UserSettings {
@@ -82,4 +89,15 @@ export interface UserSettings {
   // shown (whether completed or explicitly skipped) — see AuthProvider — so it
   // never shows again after the first login.
   recurringOnboardingDone?: boolean
+  synced?: boolean
+}
+
+// A row queued for deletion on Supabase — see db/sync.ts. `table` is the Supabase
+// table name (snake_case, e.g. "transaction_splits"), not the local Dexie one.
+// Removed once the remote delete succeeds; if push never runs (offline), it just
+// waits here — the row itself is already gone locally regardless.
+export interface PendingDelete {
+  id?: number
+  table: string
+  rowId: string
 }

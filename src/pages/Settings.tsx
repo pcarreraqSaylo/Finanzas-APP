@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { db } from '../db/db'
 import { stopRecurringRule, updateRecurringRuleAmount } from '../db/repo'
+import { getLastSyncResult, syncNow } from '../db/sync'
 import { useAuth } from '../context/AuthProvider'
 import type { RecurringRule } from '../db/types'
 
@@ -10,6 +11,12 @@ const CURRENCIES = ['MXN', 'USD', 'EUR']
 
 function formatMoney(amount: number, currency: string) {
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount)
+}
+
+function formatSyncStatus(result: ReturnType<typeof getLastSyncResult>) {
+  if (!result) return 'Aún no se ha sincronizado en esta sesión.'
+  const when = new Date(result.at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+  return result.ok ? `Última sincronización: ${when}` : `Error al sincronizar (${when}): ${result.error}`
 }
 
 // A raise/pay-cut edited here only ever affects this month forward — see
@@ -82,6 +89,23 @@ export function Settings() {
   const [age, setAge] = useState('')
   const [location, setLocation] = useState('')
   const [seeded, setSeeded] = useState(false)
+  const [syncStatus, setSyncStatus] = useState(() => getLastSyncResult())
+  const [manualSyncing, setManualSyncing] = useState(false)
+
+  // The background sync (AuthProvider) updates its result on its own schedule —
+  // poll it while this screen is open rather than trying to wire a live subscription
+  // for what's fundamentally a one-off status readout.
+  useEffect(() => {
+    const interval = setInterval(() => setSyncStatus(getLastSyncResult()), 3000)
+    return () => clearInterval(interval)
+  }, [])
+
+  async function handleManualSync() {
+    setManualSyncing(true)
+    await syncNow()
+    setSyncStatus(getLastSyncResult())
+    setManualSyncing(false)
+  }
 
   // settings loads async via useLiveQuery — seed the editable fields once it arrives,
   // then leave the inputs alone so typing isn't fought by a live re-render.
@@ -184,6 +208,23 @@ export function Settings() {
       <Link to="/categories" className="rounded-app border border-ink/10 bg-surface p-4 text-sm font-medium">
         Gestionar categorías →
       </Link>
+
+      <div className="flex flex-col gap-2 rounded-app border border-ink/10 bg-surface p-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-sm font-medium text-ink-soft">Sincronización</div>
+          <button
+            type="button"
+            onClick={handleManualSync}
+            disabled={manualSyncing}
+            className="rounded-app bg-teal px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
+          >
+            {manualSyncing ? 'Sincronizando…' : 'Sincronizar ahora'}
+          </button>
+        </div>
+        <p className={`text-xs ${syncStatus && !syncStatus.ok ? 'text-expense' : 'text-ink-soft'}`}>
+          {formatSyncStatus(syncStatus)}
+        </p>
+      </div>
 
       <div className="flex flex-col gap-2 rounded-app border border-ink/10 bg-surface p-4">
         {email && <div className="text-xs text-ink-soft">Sesión iniciada como {email}</div>}

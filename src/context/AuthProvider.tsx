@@ -5,6 +5,7 @@ import { db, switchDatabaseFor } from '../db/db'
 import { claimLegacyData, hasLegacyData } from '../db/authRepo'
 import { ensureSiniestrosCategory, fixupRenamedSubcategories, seedIfEmpty } from '../db/seed'
 import { ensureRecurringTransactionsForCurrentMonth } from '../db/repo'
+import { syncNow } from '../db/sync'
 
 // Once a device has answered "claim my old data or start fresh," it never asks
 // again — even for a different person logging into the same device afterward.
@@ -98,6 +99,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Sync runs whenever the real app is actually up — right away on unlock, then
+  // again periodically and whenever the device comes back online — regardless of
+  // which path (fresh PIN setup, PIN unlock, or a just-finished claim/onboarding)
+  // got the phase to "unlocked". Torn down the moment the phase leaves "unlocked"
+  // (locking, signing out), so nothing runs against a database that's about to be
+  // switched out from under it.
+  useEffect(() => {
+    if (phase !== 'unlocked') return
+
+    const run = () => {
+      syncNow()
+    }
+    run()
+    const interval = setInterval(run, 90_000)
+    window.addEventListener('online', run)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('online', run)
+    }
+  }, [phase])
 
   async function sendMagicLink(emailInput: string) {
     const { error } = await supabase.auth.signInWithOtp({
