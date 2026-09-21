@@ -1,9 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
 import { BottomNav } from './components/BottomNav'
 import { SwipeableTabs } from './components/SwipeableTabs'
 import { Trips } from './pages/Trips'
 import { useTripMode } from './context/TripMode'
+import { useAuth } from './context/AuthProvider'
+import { LoginEmail } from './pages/auth/LoginEmail'
+import { ClaimDataChoice } from './pages/auth/ClaimDataChoice'
+import { PinSetup } from './pages/auth/PinSetup'
+import { PinUnlock } from './pages/auth/PinUnlock'
+import { OnboardingRecurringSetup } from './pages/auth/OnboardingRecurringSetup'
 
 // Trips lives outside the swipeable bottom-tab sequence (it's reached via the Extras
 // menu, not a bottom-nav tab), so it renders as a plain page instead of a swipe panel.
@@ -15,6 +21,20 @@ function App() {
   // watch it to snap back to the closed wheel regardless of where they currently are.
   const [homeResetKey, setHomeResetKey] = useState(0)
   const { activeTripId } = useTripMode()
+  const { phase } = useAuth()
+
+  // Any phase other than "unlocked" replaces the whole app with a gate screen —
+  // this is what makes switching db/db.ts's `db` binding to a different person's
+  // local database safe: the tree that actually reads `db` (SwipeableTabs and
+  // everything under it) is fully unmounted before that switch and only remounts
+  // once AuthProvider has already resolved which database it should read.
+  let gate: ReactNode = null
+  if (phase === 'loading') gate = <div className="flex flex-1 items-center justify-center text-sm text-ink-soft">Cargando…</div>
+  else if (phase === 'signedOut') gate = <LoginEmail />
+  else if (phase === 'claimChoice') gate = <ClaimDataChoice />
+  else if (phase === 'needsPin') gate = <PinSetup />
+  else if (phase === 'needsRecurringOnboarding') gate = <OnboardingRecurringSetup />
+  else if (phase === 'locked') gate = <PinUnlock />
 
   // The iPhone status bar takes its color from <meta name="theme-color">, which is
   // static in index.html — without this it stayed teal (Home's color) on every page,
@@ -34,14 +54,16 @@ function App() {
       <div
         className={`flex h-full w-full max-w-md flex-col overflow-hidden bg-pearl shadow-xl ${activeTripId ? 'trip-mode' : ''}`}
       >
-        {isTrips ? (
+        {gate ? (
+          gate
+        ) : isTrips ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
             <Trips />
           </div>
         ) : (
           <SwipeableTabs homeResetKey={homeResetKey} />
         )}
-        <BottomNav onHomeClick={() => setHomeResetKey((k) => k + 1)} />
+        {!gate && <BottomNav onHomeClick={() => setHomeResetKey((k) => k + 1)} />}
       </div>
     </div>
   )

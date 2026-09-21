@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { db } from '../db/db'
 import { stopRecurringRule, updateRecurringRuleAmount } from '../db/repo'
+import { useAuth } from '../context/AuthProvider'
 import type { RecurringRule } from '../db/types'
 
 const CURRENCIES = ['MXN', 'USD', 'EUR']
@@ -65,6 +66,7 @@ function RecurringIncomeRow({
 }
 
 export function Settings() {
+  const { email, signOut } = useAuth()
   const settings = useLiveQuery(() => db.userSettings.get('default'))
   const currency = settings?.currencyDefault ?? 'MXN'
 
@@ -182,6 +184,13 @@ export function Settings() {
       <Link to="/categories" className="rounded-app border border-ink/10 bg-surface p-4 text-sm font-medium">
         Gestionar categorías →
       </Link>
+
+      <div className="flex flex-col gap-2 rounded-app border border-ink/10 bg-surface p-4">
+        {email && <div className="text-xs text-ink-soft">Sesión iniciada como {email}</div>}
+        <button type="button" onClick={signOut} className="self-start text-sm font-medium text-expense underline">
+          Cerrar sesión
+        </button>
+      </div>
     </div>
   )
 }
