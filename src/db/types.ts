@@ -69,10 +69,17 @@ export interface TransactionSplit {
 }
 
 export interface UserSettings {
-  id: 'default' // single local profile for now, one row
+  id: 'default' // one row per per-user local database — see db/db.ts
   currencyDefault: string
   theme: 'blue' | 'green'
   name?: string
   age?: number | null
   location?: string
+  // Hash of the local unlock PIN (see lib/pin.ts) — never the PIN itself, and never
+  // synced to Supabase (it's a device convenience gate, not the real auth).
+  pinHash?: string | null
+  // True once the first-login "add your salary/recurring charges" step has been
+  // shown (whether completed or explicitly skipped) — see AuthProvider — so it
+  // never shows again after the first login.
+  recurringOnboardingDone?: boolean
 }
