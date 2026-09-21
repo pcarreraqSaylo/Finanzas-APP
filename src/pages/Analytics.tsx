@@ -51,6 +51,17 @@ function mondayFirstIndex(dateStr: string) {
   return (day + 6) % 7
 }
 
+function msToLocalDate(ms: number) {
+  const d = new Date(ms)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function formatDayRange(start: string, end: string) {
+  const s = Number(start.slice(-2))
+  const e = Number(end.slice(-2))
+  return s === e ? `${s}` : `${s}–${e}`
+}
+
 function StatTile({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="flex flex-col items-center gap-0.5 rounded-app border border-ink/10 bg-surface px-2 py-3 text-center">
@@ -68,6 +79,7 @@ export function Analytics() {
   const [monthOffset, setMonthOffset] = useState(0)
   const [viewMode, setViewMode] = useState<ViewMode>('month')
   const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>(null)
+  const [expandedWhoId, setExpandedWhoId] = useState<string | null>(null)
   const [dimension, setDimension] = useState<BreakdownDimension>('category')
   const yearMonth = shiftYearMonth(currentYearMonth(), monthOffset)
 
@@ -149,6 +161,7 @@ export function Analytics() {
     const byCategory = new Map<string, number>()
     const bySubcategory = new Map<string, Map<string, number>>()
     const byWho = new Map<string, number>()
+    const byWhoCategory = new Map<string, Map<string, number>>()
 
     function tripKey(tripId: string) {
       return `trip:${tripId}`
@@ -170,7 +183,14 @@ export function Analytics() {
         subMap.set(breakdownId, (subMap.get(breakdownId) ?? 0) + split.amount)
         bySubcategory.set(key, subMap)
       }
-      if (tx?.whoId) byWho.set(tx.whoId, (byWho.get(tx.whoId) ?? 0) + split.amount)
+      if (tx?.whoId) {
+        byWho.set(tx.whoId, (byWho.get(tx.whoId) ?? 0) + split.amount)
+        // Same category/trip key as the "por categoría" breakdown above, just scoped
+        // per "who" so tapping a who row can drop down into what it was spent on.
+        const whoCatMap = byWhoCategory.get(tx.whoId) ?? new Map<string, number>()
+        whoCatMap.set(key, (whoCatMap.get(key) ?? 0) + split.amount)
+        byWhoCategory.set(tx.whoId, whoCatMap)
+      }
     }
 
     const categoryRows = Array.from(byCategory.entries())
@@ -197,11 +217,26 @@ export function Analytics() {
       .sort((a, b) => b.amount - a.amount)
 
     const whoRows = Array.from(byWho.entries())
-      .map(([whoId, amount]) => ({
-        who: whoById.get(whoId),
-        amount,
-        pct: current.expense ? Math.round((amount / current.expense) * 100) : 0,
-      }))
+      .map(([whoId, amount]) => {
+        const breakdown = Array.from((byWhoCategory.get(whoId) ?? new Map()).entries())
+          .map(([key, amt]) => {
+            const isTrip = key.startsWith('trip:')
+            const trip = isTrip ? tripById.get(key.slice(5)) : undefined
+            return {
+              key,
+              isTrip,
+              name: isTrip ? `Viaje: ${trip?.name ?? '—'}` : (categoryById.get(key)?.name ?? '—'),
+              amount: amt,
+            }
+          })
+          .sort((a, b) => b.amount - a.amount)
+        return {
+          who: whoById.get(whoId),
+          amount,
+          pct: current.expense ? Math.round((amount / current.expense) * 100) : 0,
+          breakdown,
+        }
+      })
       .sort((a, b) => b.amount - a.amount)
 
     // Record — not a projection, just the actual income vs. expense per month, oldest
@@ -228,6 +263,34 @@ export function Analytics() {
     }
     const weekdayAverages = weekdayTotals.map((total, i) => (weekdayCounts[i] ? total / weekdayCounts[i] : 0))
 
+    // Weekly pacing within the selected month — 7-day buckets from day 1 (Semana 1,
+    // Semana 2, ...), so Pablo can see how each week of the month is landing as it
+    // goes, not just the single running average. Month-mode only; doesn't make sense
+    // against a YTD window.
+    const weeklyBreakdown =
+      viewMode === 'month'
+        ? (() => {
+            const weeks: { label: string; start: string; end: string; amount: number }[] = []
+            const periodStartMs = new Date(`${periodStart}T00:00:00`).getTime()
+            for (let i = 0; i < periodDays; i += 7) {
+              const wStartMs = periodStartMs + i * 86_400_000
+              const wEndMs = Math.min(wStartMs + 6 * 86_400_000, periodStartMs + (periodDays - 1) * 86_400_000)
+              weeks.push({
+                label: `Semana ${weeks.length + 1}`,
+                start: msToLocalDate(wStartMs),
+                end: msToLocalDate(wEndMs),
+                amount: 0,
+              })
+            }
+            for (const t of current.txs) {
+              if (t.type !== 'expense') continue
+              const week = weeks.find((w) => t.date >= w.start && t.date <= w.end)
+              if (week) week.amount += t.totalAmount
+            }
+            return weeks
+          })()
+        : []
+
     const pctOfIncome = current.income > 0 ? Math.round((current.expense / current.income) * 100) : null
     const deltaVsCompare =
       compareTotals.expense > 0 ? Math.round(((current.expense - compareTotals.expense) / compareTotals.expense) * 100) : null
@@ -247,6 +310,7 @@ export function Analytics() {
       whoRows,
       record,
       weekdayAverages,
+      weeklyBreakdown,
     }
   }, [data, yearMonth, viewMode])
 
@@ -257,6 +321,7 @@ export function Analytics() {
   const topCategory = stats.categoryRows[0]
   const topWho = stats.whoRows[0]
   const recordMax = Math.max(...stats.record.flatMap((m) => [m.income, m.expense]), 1)
+  const weeklyMax = Math.max(...stats.weeklyBreakdown.map((w) => w.amount), 1)
   const weekdayMax = Math.max(...stats.weekdayAverages, 1)
   const weekdayPoints = stats.weekdayAverages.map((avg, i) => ({
     x: (i / (stats.weekdayAverages.length - 1)) * 100,
@@ -340,6 +405,35 @@ export function Analytics() {
         <StatTile label="Gasto mensual prom." value={formatMoney(stats.avgMonthly, currency)} />
       </div>
 
+      {stats.weeklyBreakdown.length > 0 && (
+        <section className="flex flex-col gap-2 rounded-app border border-ink/10 bg-surface p-3">
+          <h2 className="text-sm font-semibold text-ink">Gasto semanal</h2>
+          <p className="text-xs text-ink-soft">Cómo va cada semana del mes</p>
+          <div className="flex flex-col gap-1.5 pt-1">
+            {stats.weeklyBreakdown.map((w) => {
+              const isCurrentWeek = todayLocalDate() >= w.start && todayLocalDate() <= w.end
+              const pct = Math.max((w.amount / weeklyMax) * 100, w.amount > 0 ? 3 : 0)
+              return (
+                <div key={w.label} className="flex items-center gap-2">
+                  <span
+                    className={`w-24 shrink-0 text-xs ${isCurrentWeek ? 'font-semibold text-ink' : 'text-ink-soft'}`}
+                  >
+                    {w.label} · {formatDayRange(w.start, w.end)}
+                  </span>
+                  <div className="h-2 flex-1 rounded-full bg-pearl">
+                    <div
+                      className={`h-2 rounded-full ${isCurrentWeek ? 'bg-cornflower' : 'bg-teal'}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <span className="w-16 shrink-0 text-right text-xs font-medium">{formatMoney(w.amount, currency)}</span>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
       <section className="flex flex-col gap-1 rounded-app border border-ink/10 bg-surface p-3">
         <h2 className="mb-1 text-sm font-semibold text-ink">{dimension === 'category' ? 'Por categoría' : 'Por "Who"'}</h2>
 
@@ -390,21 +484,40 @@ export function Analytics() {
         ) : (
           <>
             {stats.whoRows.length === 0 && <p className="text-sm text-ink-soft">Sin datos de "Who" en este periodo.</p>}
-            {stats.whoRows.map((row) => (
-              <div key={row.who?.id} className="flex items-center gap-2 py-1.5">
-                <CategoryBadge name={row.who?.name ?? '—'} size="sm" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="truncate">{row.who?.name}</span>
-                    <span className="ml-2 shrink-0 font-medium">{formatMoney(row.amount, currency)}</span>
-                  </div>
-                  <div className="mt-1 h-2 w-full rounded-full bg-pearl">
-                    <div className="h-2 rounded-full bg-teal" style={{ width: `${Math.max(row.pct, 3)}%` }} />
-                  </div>
+            {stats.whoRows.map((row) => {
+              const isExpanded = expandedWhoId === row.who?.id
+              return (
+                <div key={row.who?.id}>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedWhoId(isExpanded ? null : (row.who?.id ?? null))}
+                    className="flex w-full items-center gap-2 py-1.5 text-left"
+                  >
+                    <CategoryBadge name={row.who?.name ?? '—'} size="sm" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="truncate">{row.who?.name}</span>
+                        <span className="ml-2 shrink-0 font-medium">{formatMoney(row.amount, currency)}</span>
+                      </div>
+                      <div className="mt-1 h-2 w-full rounded-full bg-pearl">
+                        <div className="h-2 rounded-full bg-teal" style={{ width: `${Math.max(row.pct, 3)}%` }} />
+                      </div>
+                    </div>
+                    <span className="w-9 shrink-0 text-right text-xs text-ink-soft">{row.pct}%</span>
+                  </button>
+                  {isExpanded && row.breakdown.length > 0 && (
+                    <div className="ml-10 flex flex-col gap-1 pb-2">
+                      {row.breakdown.map((b) => (
+                        <div key={b.key} className="flex items-center justify-between text-xs text-ink-soft">
+                          <span>{b.name}</span>
+                          <span>{formatMoney(b.amount, currency)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <span className="w-9 shrink-0 text-right text-xs text-ink-soft">{row.pct}%</span>
-              </div>
-            ))}
+              )
+            })}
           </>
         )}
       </section>

@@ -2,13 +2,17 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { v4 as uuid } from 'uuid'
 import { db } from '../db/db'
-import type { Kind } from '../db/types'
+import type { Category, Kind, Subcategory } from '../db/types'
 import { CategoryBadge } from '../components/CategoryBadge'
+import { ConfirmDeleteCategoryModal } from '../components/ConfirmDeleteCategoryModal'
+import { ConfirmDeleteSubcategoryModal } from '../components/ConfirmDeleteSubcategoryModal'
 
 export function Categories() {
   const [kind, setKind] = useState<Kind>('expense')
   const [newCategoryName, setNewCategoryName] = useState('')
   const [newSubName, setNewSubName] = useState<Record<string, string>>({})
+  const [subToDelete, setSubToDelete] = useState<Subcategory | null>(null)
+  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null)
 
   const categories = useLiveQuery(() => db.categories.where('kind').equals(kind).sortBy('sortOrder'), [kind])
   const subcategories = useLiveQuery(() => db.subcategories.toArray())
@@ -34,17 +38,6 @@ export function Categories() {
     const count = await db.subcategories.where('categoryId').equals(categoryId).count()
     await db.subcategories.add({ id: uuid(), categoryId, name, icon: null, sortOrder: count })
     setNewSubName((prev) => ({ ...prev, [categoryId]: '' }))
-  }
-
-  async function removeCategory(categoryId: string) {
-    await db.transaction('rw', db.categories, db.subcategories, async () => {
-      await db.subcategories.where('categoryId').equals(categoryId).delete()
-      await db.categories.delete(categoryId)
-    })
-  }
-
-  async function removeSubcategory(id: string) {
-    await db.subcategories.delete(id)
   }
 
   return (
@@ -76,7 +69,7 @@ export function Categories() {
                 <CategoryBadge name={category.name} size="sm" />
                 {category.name}
               </span>
-              <button type="button" onClick={() => removeCategory(category.id)} className="text-xs text-ink-soft underline">
+              <button type="button" onClick={() => setCategoryToDelete(category)} className="text-xs text-ink-soft underline">
                 Borrar
               </button>
             </div>
@@ -86,7 +79,7 @@ export function Categories() {
                 .map((sub) => (
                   <span key={sub.id} className="flex items-center gap-1 rounded-app bg-pearl px-2 py-1 text-xs">
                     {sub.name}
-                    <button type="button" onClick={() => removeSubcategory(sub.id)} className="text-ink-soft">
+                    <button type="button" onClick={() => setSubToDelete(sub)} className="text-ink-soft">
                       ×
                     </button>
                   </span>
@@ -120,6 +113,22 @@ export function Categories() {
           Agregar
         </button>
       </div>
+
+      {subToDelete && (
+        <ConfirmDeleteSubcategoryModal
+          subcategory={subToDelete}
+          siblings={subcategories?.filter((s) => s.categoryId === subToDelete.categoryId && s.id !== subToDelete.id) ?? []}
+          onClose={() => setSubToDelete(null)}
+        />
+      )}
+
+      {categoryToDelete && (
+        <ConfirmDeleteCategoryModal
+          category={categoryToDelete}
+          siblings={categories?.filter((c) => c.id !== categoryToDelete.id) ?? []}
+          onClose={() => setCategoryToDelete(null)}
+        />
+      )}
     </div>
   )
 }

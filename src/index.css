@@ -82,22 +82,32 @@
 html,
 body {
   margin: 0;
+  height: 100%;
+  /* The page itself must never scroll — only the tab-content container inside
+     SwipeableTabs does (it has its own overflow-y-auto per tab). Without this, a
+     short-content tab like Home still lets iOS rubber-band the whole document,
+     which (a) makes a page with nothing to scroll to feel scrollable anyway and
+     (b) during that bounce reveals the raw theme-color behind the app shell and
+     drags the bottom nav out of place, since "sticky" only pins within a
+     scrolling ancestor — eliminating the ancestor scroll is what actually pins it. */
+  overflow: hidden;
+  overscroll-behavior: none;
   /* Blocks the double-tap-to-zoom gesture (pinch is blocked in main.tsx — iOS Safari
      ignores the viewport meta's user-scalable=no for that one) while still allowing
-     normal vertical scroll/pan. */
+     normal vertical scroll/pan inside the tab-content container. */
   touch-action: manipulation;
 }
 
 body {
   background: var(--color-pearl);
   color: var(--color-ink);
-  min-height: 100svh;
 }
 
 #root {
-  min-height: 100svh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 button,

@@ -1,13 +1,26 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { db } from '../db/db'
-import { deleteTransaction, exportTransactionsCsv, todayLocalDate } from '../db/repo'
+import {
+  currentYearMonth,
+  deleteTransaction,
+  exportTransactionsCsv,
+  monthRange,
+  shiftYearMonth,
+  todayLocalDate,
+} from '../db/repo'
 import { CategoryBadge } from '../components/CategoryBadge'
 import { EditTransactionModal } from '../components/EditTransactionModal'
 import type { Transaction } from '../db/types'
 
 function formatMoney(amount: number, currency: string) {
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount)
+}
+
+function formatMonthLabel(yearMonth: string) {
+  const [year, month] = yearMonth.split('-').map(Number)
+  const label = new Date(year, month - 1, 1).toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })
+  return label.charAt(0).toUpperCase() + label.slice(1)
 }
 
 async function handleDownloadCsv() {
@@ -23,9 +36,12 @@ async function handleDownloadCsv() {
 
 export function Transactions() {
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
+  const [monthOffset, setMonthOffset] = useState(0)
+  const yearMonth = shiftYearMonth(currentYearMonth(), monthOffset)
+  const { start, end } = monthRange(yearMonth)
 
   const rows = useLiveQuery(async () => {
-    const txs = await db.transactions.toArray()
+    const txs = (await db.transactions.toArray()).filter((t) => t.date >= start && t.date <= end)
     // Chronological: by date first, then by the exact moment it was logged within that
     // date — never displayed, just used so same-day entries land in the right order.
     txs.sort((a, b) => (a.date !== b.date ? (a.date < b.date ? 1 : -1) : b.createdAt - a.createdAt))
@@ -74,7 +90,27 @@ export function Transactions() {
           Descargar CSV
         </button>
       </div>
-      {rows?.length === 0 && <p className="text-xs text-ink-soft">Nada registrado todavía.</p>}
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => setMonthOffset((o) => o - 1)}
+          aria-label="Mes anterior"
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-surface text-ink-soft ring-1 ring-ink/10 active:scale-95"
+        >
+          ‹
+        </button>
+        <h2 className="font-display text-sm font-semibold text-ink">{formatMonthLabel(yearMonth)}</h2>
+        <button
+          type="button"
+          onClick={() => setMonthOffset((o) => Math.min(0, o + 1))}
+          aria-label="Mes siguiente"
+          disabled={monthOffset === 0}
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-surface text-ink-soft ring-1 ring-ink/10 active:scale-95 disabled:opacity-30"
+        >
+          ›
+        </button>
+      </div>
+      {rows?.length === 0 && <p className="text-xs text-ink-soft">Nada registrado en este mes.</p>}
       <div className="flex flex-col gap-1.5">
         {rows?.map(({ tx, label, primaryCategoryName, who }) => (
           <div key={tx.id} className="flex items-center gap-2 rounded-app border border-ink/10 bg-surface px-2.5 py-1.5">

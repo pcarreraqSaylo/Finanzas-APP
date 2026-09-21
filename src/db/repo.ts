@@ -58,6 +58,53 @@ export async function deleteTransaction(transactionId: string) {
   })
 }
 
+// Deleting a subcategory used to just drop the row, silently orphaning every split
+// that pointed at it. Now every existing split is reassigned first — either to
+// another subcategory in the same category, or to null ("sin subcategoría") — so
+// nothing dangling is left behind. Pass reassignTo: null to explicitly clear it.
+export async function deleteSubcategory(subcategoryId: string, reassignTo: string | null) {
+  await db.transaction('rw', db.subcategories, db.transactionSplits, async () => {
+    await db.transactionSplits.where('subcategoryId').equals(subcategoryId).modify({ subcategoryId: reassignTo })
+    await db.subcategories.delete(subcategoryId)
+  })
+}
+
+// A fallback catch-all category per kind, lazily created the first time something
+// needs to land in it (a deleted category's leftover transactions with nowhere
+// else to go). Kept separate from the user's own "Otros" seed category — that one
+// is a normal category Pablo can rename or delete like any other, so it can't be
+// relied on as a permanent landing spot.
+export async function ensureUncategorizedCategory(kind: Kind): Promise<string> {
+  const existing = await db.categories
+    .where('name')
+    .equals('Sin categoría')
+    .and((c) => c.kind === kind)
+    .first()
+  if (existing) return existing.id
+
+  const id = uuid()
+  const count = await db.categories.where('kind').equals(kind).count()
+  await db.categories.add({ id, name: 'Sin categoría', kind, icon: '', sortOrder: count, createdAt: Date.now() })
+  return id
+}
+
+// categoryId is a required field on transactionSplits (unlike subcategoryId, which
+// can be null) — deleting a category can never just orphan its splits, they always
+// need a real landing category. reassignToCategoryId is that target (an existing
+// category, or the id from ensureUncategorizedCategory). subcategoryId is cleared
+// on every reassigned split since the old subcategory belonged to the deleted
+// category and won't exist in the new one.
+export async function deleteCategory(categoryId: string, reassignToCategoryId: string) {
+  await db.transaction('rw', db.categories, db.subcategories, db.transactionSplits, async () => {
+    await db.transactionSplits
+      .where('categoryId')
+      .equals(categoryId)
+      .modify({ categoryId: reassignToCategoryId, subcategoryId: null })
+    await db.subcategories.where('categoryId').equals(categoryId).delete()
+    await db.categories.delete(categoryId)
+  })
+}
+
 export interface UpdateTransactionInput {
   id: string
   date: string
