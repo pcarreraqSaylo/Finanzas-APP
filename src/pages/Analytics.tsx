@@ -56,11 +56,6 @@ function msToLocalDate(ms: number) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-function formatDayRange(start: string, end: string) {
-  const s = Number(start.slice(-2))
-  const e = Number(end.slice(-2))
-  return s === e ? `${s}` : `${s}–${e}`
-}
 
 function StatTile({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
@@ -291,6 +286,24 @@ export function Analytics() {
           })()
         : []
 
+    // A YTD-scoped weekly average — independent of the month/YTD toggle above, and
+    // of which month is currently being paged through. This is the benchmark line
+    // for "is this week high or low," a longer-term reference than just this
+    // month's own average.
+    const ytdStart = `${new Date().getFullYear()}-01-01`
+    const ytdEnd = todayLocalDate()
+    const ytdWeeklyTotals = totalsForRange(ytdStart, ytdEnd)
+    const ytdWeeklyAvg = ytdWeeklyTotals.expense / (daysBetween(ytdStart, ytdEnd) / 7)
+
+    // "Current week" only means something while actually looking at the real
+    // current month — a past month has no current week to call out.
+    const currentWeek =
+      yearMonth === currentYearMonth()
+        ? weeklyBreakdown.find((w) => todayLocalDate() >= w.start && todayLocalDate() <= w.end)
+        : undefined
+    const currentWeekVsYtdAvgPct =
+      currentWeek && ytdWeeklyAvg > 0 ? Math.round(((currentWeek.amount - ytdWeeklyAvg) / ytdWeeklyAvg) * 100) : null
+
     const pctOfIncome = current.income > 0 ? Math.round((current.expense / current.income) * 100) : null
     const deltaVsCompare =
       compareTotals.expense > 0 ? Math.round(((current.expense - compareTotals.expense) / compareTotals.expense) * 100) : null
@@ -311,6 +324,9 @@ export function Analytics() {
       record,
       weekdayAverages,
       weeklyBreakdown,
+      ytdWeeklyAvg,
+      currentWeek,
+      currentWeekVsYtdAvgPct,
     }
   }, [data, yearMonth, viewMode])
 
@@ -405,35 +421,6 @@ export function Analytics() {
         <StatTile label="Gasto mensual prom." value={formatMoney(stats.avgMonthly, currency)} />
       </div>
 
-      {stats.weeklyBreakdown.length > 0 && (
-        <section className="flex flex-col gap-2 rounded-app border border-ink/10 bg-surface p-3">
-          <h2 className="text-sm font-semibold text-ink">Gasto semanal</h2>
-          <p className="text-xs text-ink-soft">Cómo va cada semana del mes</p>
-          <div className="flex flex-col gap-1.5 pt-1">
-            {stats.weeklyBreakdown.map((w) => {
-              const isCurrentWeek = todayLocalDate() >= w.start && todayLocalDate() <= w.end
-              const pct = Math.max((w.amount / weeklyMax) * 100, w.amount > 0 ? 3 : 0)
-              return (
-                <div key={w.label} className="flex items-center gap-2">
-                  <span
-                    className={`w-24 shrink-0 text-xs ${isCurrentWeek ? 'font-semibold text-ink' : 'text-ink-soft'}`}
-                  >
-                    {w.label} · {formatDayRange(w.start, w.end)}
-                  </span>
-                  <div className="h-2 flex-1 rounded-full bg-pearl">
-                    <div
-                      className={`h-2 rounded-full ${isCurrentWeek ? 'bg-cornflower' : 'bg-teal'}`}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                  <span className="w-16 shrink-0 text-right text-xs font-medium">{formatMoney(w.amount, currency)}</span>
-                </div>
-              )
-            })}
-          </div>
-        </section>
-      )}
-
       <section className="flex flex-col gap-1 rounded-app border border-ink/10 bg-surface p-3">
         <h2 className="mb-1 text-sm font-semibold text-ink">{dimension === 'category' ? 'Por categoría' : 'Por "Who"'}</h2>
 
@@ -521,6 +508,54 @@ export function Analytics() {
           </>
         )}
       </section>
+
+      {stats.weeklyBreakdown.length > 0 && (
+        <section className="flex flex-col gap-2 rounded-app border border-ink/10 bg-surface p-3">
+          <h2 className="text-sm font-semibold text-ink">Gasto semanal</h2>
+
+          <div className="flex items-center justify-between rounded-app bg-pearl px-3 py-2 text-xs">
+            <span className="text-ink-soft">Promedio semanal (YTD)</span>
+            <span className="font-medium text-ink">{formatMoney(stats.ytdWeeklyAvg, currency)}</span>
+          </div>
+          {stats.currentWeek && stats.currentWeekVsYtdAvgPct !== null && (
+            <div className="flex items-center justify-between px-1 text-xs">
+              <span className="text-ink-soft">{stats.currentWeek.label} vs. tu promedio</span>
+              <span className={`font-semibold ${stats.currentWeekVsYtdAvgPct > 0 ? 'text-expense' : 'text-income'}`}>
+                {stats.currentWeekVsYtdAvgPct > 0 ? '+' : ''}
+                {stats.currentWeekVsYtdAvgPct}%
+              </span>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-1.5 pt-1">
+            {stats.weeklyBreakdown.map((w) => {
+              const isCurrentWeek = stats.currentWeek?.label === w.label
+              const pct = Math.max((w.amount / weeklyMax) * 100, w.amount > 0 ? 3 : 0)
+              return (
+                <div key={w.label} className="flex items-center gap-2">
+                  <span className={`w-16 shrink-0 text-xs ${isCurrentWeek ? 'font-semibold text-ink' : 'text-ink-soft'}`}>
+                    {w.label}
+                  </span>
+                  <div className="relative h-2 flex-1 rounded-full bg-pearl">
+                    <div
+                      className={`h-2 rounded-full ${isCurrentWeek ? 'bg-cornflower' : 'bg-teal'}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                    {stats.ytdWeeklyAvg > 0 && (
+                      <div
+                        className="absolute top-0 h-2 w-0.5 bg-ink/40"
+                        style={{ left: `${Math.min((stats.ytdWeeklyAvg / weeklyMax) * 100, 100)}%` }}
+                      />
+                    )}
+                  </div>
+                  <span className="w-16 shrink-0 text-right text-xs font-medium">{formatMoney(w.amount, currency)}</span>
+                </div>
+              )
+            })}
+          </div>
+          <p className="text-[10px] text-ink-soft">La línea marca tu promedio semanal (YTD).</p>
+        </section>
+      )}
 
       <section className="flex flex-col gap-2 rounded-app border border-ink/10 bg-surface p-3">
         <h2 className="text-sm font-semibold text-ink">
