@@ -4,12 +4,23 @@ import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.tsx'
 import { TripModeProvider } from './context/TripMode.tsx'
-import { AuthProvider } from './context/AuthProvider.tsx'
+import { AuthProvider, AUTH_ENABLED } from './context/AuthProvider.tsx'
+import { ensureSiniestrosCategory, fixupRenamedSubcategories, seedIfEmpty } from './db/seed.ts'
+import { ensureRecurringTransactionsForCurrentMonth } from './db/repo.ts'
 
-// Seeding/fixups used to run once here, unconditionally, against a single shared
-// database. Now that each logged-in person has their own local database (see
-// db/db.ts), that sequencing only makes sense once we know who's logged in — it
-// lives in AuthProvider's phase machine instead.
+// While accounts are enabled, seeding/fixups run per-user inside AuthProvider's
+// phase machine instead (it's the one that knows which local database is active).
+// While paused (AUTH_ENABLED === false, see AuthProvider.tsx), every device just
+// uses the one shared local database directly, same as before accounts existed —
+// which means nothing else ever seeds it, so this has to run unconditionally here,
+// exactly like it did originally. Forgetting this is exactly what left a brand-new
+// device with zero categories after the gate was paused.
+if (!AUTH_ENABLED) {
+  seedIfEmpty()
+    .then(() => fixupRenamedSubcategories())
+    .then(() => ensureSiniestrosCategory())
+    .then(() => ensureRecurringTransactionsForCurrentMonth())
+}
 
 // iOS Safari still allows pinch-zoom via this non-standard gesture event regardless
 // of the viewport meta's user-scalable=no — this is the app-should-feel-fixed fix.
