@@ -52,9 +52,12 @@ export async function createTransaction(input: CreateTransactionInput) {
 }
 
 export async function deleteTransaction(transactionId: string) {
-  await db.transaction('rw', db.transactions, db.transactionSplits, async () => {
+  await db.transaction('rw', db.transactions, db.transactionSplits, db.pendingDeletes, async () => {
+    const splitIds = await db.transactionSplits.where('transactionId').equals(transactionId).primaryKeys()
     await db.transactionSplits.where('transactionId').equals(transactionId).delete()
     await db.transactions.delete(transactionId)
+    await db.pendingDeletes.add({ table: 'transactions', rowId: transactionId })
+    for (const id of splitIds) await db.pendingDeletes.add({ table: 'transaction_splits', rowId: String(id) })
   })
 }
 
@@ -63,9 +66,10 @@ export async function deleteTransaction(transactionId: string) {
 // another subcategory in the same category, or to null ("sin subcategoría") — so
 // nothing dangling is left behind. Pass reassignTo: null to explicitly clear it.
 export async function deleteSubcategory(subcategoryId: string, reassignTo: string | null) {
-  await db.transaction('rw', db.subcategories, db.transactionSplits, async () => {
+  await db.transaction('rw', db.subcategories, db.transactionSplits, db.pendingDeletes, async () => {
     await db.transactionSplits.where('subcategoryId').equals(subcategoryId).modify({ subcategoryId: reassignTo })
     await db.subcategories.delete(subcategoryId)
+    await db.pendingDeletes.add({ table: 'subcategories', rowId: subcategoryId })
   })
 }
 
@@ -95,13 +99,16 @@ export async function ensureUncategorizedCategory(kind: Kind): Promise<string> {
 // on every reassigned split since the old subcategory belonged to the deleted
 // category and won't exist in the new one.
 export async function deleteCategory(categoryId: string, reassignToCategoryId: string) {
-  await db.transaction('rw', db.categories, db.subcategories, db.transactionSplits, async () => {
+  await db.transaction('rw', db.categories, db.subcategories, db.transactionSplits, db.pendingDeletes, async () => {
+    const subcategoryIds = await db.subcategories.where('categoryId').equals(categoryId).primaryKeys()
     await db.transactionSplits
       .where('categoryId')
       .equals(categoryId)
       .modify({ categoryId: reassignToCategoryId, subcategoryId: null })
     await db.subcategories.where('categoryId').equals(categoryId).delete()
     await db.categories.delete(categoryId)
+    await db.pendingDeletes.add({ table: 'categories', rowId: categoryId })
+    for (const id of subcategoryIds) await db.pendingDeletes.add({ table: 'subcategories', rowId: String(id) })
   })
 }
 
