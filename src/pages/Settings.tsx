@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { db } from '../db/db'
 import { stopRecurringRule, updateRecurringRuleAmount } from '../db/repo'
 import { getLastSyncResult, syncNow } from '../db/sync'
-import { useAuth } from '../context/AuthProvider'
+import { AUTH_ENABLED, useAuth } from '../context/AuthProvider'
 import type { RecurringRule } from '../db/types'
 
 const CURRENCIES = ['MXN', 'USD', 'EUR']
@@ -209,29 +209,33 @@ export function Settings() {
         Gestionar categorías →
       </Link>
 
-      <div className="flex flex-col gap-2 rounded-app border border-ink/10 bg-surface p-4">
-        <div className="flex items-center justify-between gap-2">
-          <div className="text-sm font-medium text-ink-soft">Sincronización</div>
-          <button
-            type="button"
-            onClick={handleManualSync}
-            disabled={manualSyncing}
-            className="rounded-app bg-teal px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
-          >
-            {manualSyncing ? 'Sincronizando…' : 'Sincronizar ahora'}
-          </button>
-        </div>
-        <p className={`text-xs ${syncStatus && !syncStatus.ok ? 'text-expense' : 'text-ink-soft'}`}>
-          {formatSyncStatus(syncStatus)}
-        </p>
-      </div>
+      {AUTH_ENABLED && (
+        <>
+          <div className="flex flex-col gap-2 rounded-app border border-ink/10 bg-surface p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-sm font-medium text-ink-soft">Sincronización</div>
+              <button
+                type="button"
+                onClick={handleManualSync}
+                disabled={manualSyncing}
+                className="rounded-app bg-teal px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
+              >
+                {manualSyncing ? 'Sincronizando…' : 'Sincronizar ahora'}
+              </button>
+            </div>
+            <p className={`text-xs ${syncStatus && !syncStatus.ok ? 'text-expense' : 'text-ink-soft'}`}>
+              {formatSyncStatus(syncStatus)}
+            </p>
+          </div>
 
-      <div className="flex flex-col gap-2 rounded-app border border-ink/10 bg-surface p-4">
-        {email && <div className="text-xs text-ink-soft">Sesión iniciada como {email}</div>}
-        <button type="button" onClick={signOut} className="self-start text-sm font-medium text-expense underline">
-          Cerrar sesión
-        </button>
-      </div>
+          <div className="flex flex-col gap-2 rounded-app border border-ink/10 bg-surface p-4">
+            {email && <div className="text-xs text-ink-soft">Sesión iniciada como {email}</div>}
+            <button type="button" onClick={signOut} className="self-start text-sm font-medium text-expense underline">
+              Cerrar sesión
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
 }

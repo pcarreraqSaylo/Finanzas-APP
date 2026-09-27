@@ -4,7 +4,7 @@ import { BottomNav } from './components/BottomNav'
 import { SwipeableTabs } from './components/SwipeableTabs'
 import { Trips } from './pages/Trips'
 import { useTripMode } from './context/TripMode'
-import { useAuth } from './context/AuthProvider'
+import { AUTH_ENABLED, useAuth } from './context/AuthProvider'
 import { LoginEmail } from './pages/auth/LoginEmail'
 import { ClaimDataChoice } from './pages/auth/ClaimDataChoice'
 import { PinSetup } from './pages/auth/PinSetup'
@@ -29,12 +29,15 @@ function App() {
   // everything under it) is fully unmounted before that switch and only remounts
   // once AuthProvider has already resolved which database it should read.
   let gate: ReactNode = null
-  if (phase === 'loading') gate = <div className="flex flex-1 items-center justify-center text-sm text-ink-soft">Cargando…</div>
-  else if (phase === 'signedOut') gate = <LoginEmail />
-  else if (phase === 'claimChoice') gate = <ClaimDataChoice />
-  else if (phase === 'needsPin') gate = <PinSetup />
-  else if (phase === 'needsRecurringOnboarding') gate = <OnboardingRecurringSetup />
-  else if (phase === 'locked') gate = <PinUnlock />
+  if (AUTH_ENABLED) {
+    if (phase === 'loading')
+      gate = <div className="flex flex-1 items-center justify-center text-sm text-ink-soft">Cargando…</div>
+    else if (phase === 'signedOut') gate = <LoginEmail />
+    else if (phase === 'claimChoice') gate = <ClaimDataChoice />
+    else if (phase === 'needsPin') gate = <PinSetup />
+    else if (phase === 'needsRecurringOnboarding') gate = <OnboardingRecurringSetup />
+    else if (phase === 'locked') gate = <PinUnlock />
+  }
 
   // The iPhone status bar takes its color from <meta name="theme-color">, which is
   // static in index.html — without this it stayed teal (Home's color) on every page,

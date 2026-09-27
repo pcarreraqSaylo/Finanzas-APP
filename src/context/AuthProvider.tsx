@@ -7,6 +7,17 @@ import { ensureSiniestrosCategory, fixupRenamedSubcategories, seedIfEmpty } from
 import { ensureRecurringTransactionsForCurrentMonth } from '../db/repo'
 import { syncNow } from '../db/sync'
 
+// Temporary kill switch (2026-09-26): the login gate itself is paused — real friction
+// hit testing it (iOS splits storage between a home-screen app and the browser tab
+// a magic link opens in; Supabase's free-tier mailer's rate limit) needs a proper
+// fix (a typed code instead of a link is half of it — done below — the other half,
+// moving off the default mailer, isn't done yet) before asking anyone else to make
+// an account. Everything else here (AuthProvider, per-user local databases, sync)
+// stays fully built and wired — App.tsx just doesn't render the gate while this is
+// false, so the whole app is reachable directly like before accounts existed. Flip
+// back to true to resume, once ready to actually onboard people again.
+export const AUTH_ENABLED = false
+
 // Once a device has answered "claim my old data or start fresh," it never asks
 // again — even for a different person logging into the same device afterward.
 const CLAIM_DECIDED_KEY = 'finanzas.legacyClaimDecided'
@@ -24,6 +35,12 @@ interface AuthContextValue {
   phase: Phase
   email: string | null
   sendMagicLink: (email: string) => Promise<{ error: string | null }>
+  // Typed 6-digit code, delivered in the same email as the link — completes sign-in
+  // without ever leaving the current page. The magic link itself only works if
+  // whatever taps it happens to land back in the same storage context it was sent
+  // from, which iOS doesn't guarantee between a home-screen app and a regular
+  // browser tab; a typed code sidesteps that entirely.
+  verifyCode: (email: string, code: string) => Promise<{ error: string | null }>
   claim: (choice: 'claim' | 'fresh') => Promise<void>
   setupPin: (pin: string) => Promise<void>
   unlock: (pin: string) => Promise<boolean>
@@ -130,6 +147,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message ?? null }
   }
 
+  async function verifyCode(emailInput: string, code: string) {
+    const { error } = await supabase.auth.verifyOtp({ email: emailInput, token: code, type: 'email' })
+    // On success this sets the session directly — onAuthStateChange's SIGNED_IN
+    // branch above picks it up the same way it would from a clicked link.
+    return { error: error?.message ?? null }
+  }
+
   async function claim(choice: 'claim' | 'fresh') {
     if (choice === 'claim') {
       await claimLegacyData()
@@ -175,7 +199,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ phase, email, sendMagicLink, claim, setupPin, unlock, finishRecurringOnboarding, signOut }}>
+    <AuthContext.Provider
+      value={{ phase, email, sendMagicLink, verifyCode, claim, setupPin, unlock, finishRecurringOnboarding, signOut }}
+    >
       {children}
     </AuthContext.Provider>
   )
