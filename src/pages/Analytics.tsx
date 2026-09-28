@@ -286,14 +286,19 @@ export function Analytics() {
           })()
         : []
 
-    // A YTD-scoped weekly average — independent of the month/YTD toggle above, and
-    // of which month is currently being paged through. This is the benchmark line
-    // for "is this week high or low," a longer-term reference than just this
-    // month's own average.
+    // A longer-term weekly average — independent of the month/YTD toggle above, and
+    // of which month is currently being paged through — used as the benchmark line
+    // for "is this week high or low." Bounded to Jan 1 of the current year, but
+    // more importantly to whenever real data actually starts: anchoring at Jan 1
+    // alone counted every week before a person had even started using the app as a
+    // real $0 week, which silently dragged the average down (e.g. 34 empty weeks
+    // against 4 real ones for someone who only just started tracking in August).
     const ytdStart = `${new Date().getFullYear()}-01-01`
     const ytdEnd = todayLocalDate()
-    const ytdWeeklyTotals = totalsForRange(ytdStart, ytdEnd)
-    const ytdWeeklyAvg = ytdWeeklyTotals.expense / (daysBetween(ytdStart, ytdEnd) / 7)
+    const firstTxDate = txs.length ? txs.reduce((min, t) => (t.date < min ? t.date : min), txs[0].date) : ytdEnd
+    const trackingStart = firstTxDate > ytdStart ? firstTxDate : ytdStart
+    const ytdWeeklyTotals = totalsForRange(trackingStart, ytdEnd)
+    const ytdWeeklyAvg = ytdWeeklyTotals.expense / (daysBetween(trackingStart, ytdEnd) / 7)
 
     // "Current week" only means something while actually looking at the real
     // current month — a past month has no current week to call out.
@@ -514,7 +519,7 @@ export function Analytics() {
           <h2 className="text-sm font-semibold text-ink">Gasto semanal</h2>
 
           <div className="flex items-center justify-between rounded-app bg-pearl px-3 py-2 text-xs">
-            <span className="text-ink-soft">Promedio semanal (YTD)</span>
+            <span className="text-ink-soft">Promedio semanal (desde que empezaste)</span>
             <span className="font-medium text-ink">{formatMoney(stats.ytdWeeklyAvg, currency)}</span>
           </div>
           {stats.currentWeek && stats.currentWeekVsYtdAvgPct !== null && (
@@ -553,7 +558,7 @@ export function Analytics() {
               )
             })}
           </div>
-          <p className="text-[10px] text-ink-soft">La línea marca tu promedio semanal (YTD).</p>
+          <p className="text-[10px] text-ink-soft">La línea marca tu promedio semanal desde que empezaste a usar la app.</p>
         </section>
       )}
 
